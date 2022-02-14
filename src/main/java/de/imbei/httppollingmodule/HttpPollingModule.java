@@ -51,10 +51,10 @@ public class HttpPollingModule {
         return config;
     }
    
-    private static RequestData tryFetchRequest(String requestPath) throws IOException, InterruptedException {
+    private static RequestData tryFetchRequest(URI requestUri) throws IOException, InterruptedException {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request4request = HttpRequest.newBuilder()
-                .uri(URI.create(requestPath))
+                .uri(requestUri)
                 .GET()
                 .build();
         
@@ -90,10 +90,10 @@ public class HttpPollingModule {
         return new ResponseData(response, requestData.getRequestId());
     }
     
-    private static void postResponse(ResponseData responseData) throws IOException, InterruptedException {
+    private static void postResponse(URI responseUri, ResponseData responseData) throws IOException, InterruptedException {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest responseRequest = HttpRequest.newBuilder()
-                .uri(URI.create("response" + responseData.getRequestId()))
+                .uri(responseUri)
                 .method("POST", BodyPublishers.ofString(responseData.toString()))
                 .build();
         client.send(responseRequest, BodyHandlers.discarding());
@@ -106,14 +106,22 @@ public class HttpPollingModule {
         if (!targetPath.endsWith("/")) {
             targetPath = targetPath + "/";
         }
-        String requestPath = config.getProperty("queue") + "/pop-request";
+        String queuePath = config.getProperty("queue");
+        if (!queuePath.endsWith("/")) {
+            queuePath = queuePath + "/";
+        }
+        
+        URI requestUri = URI.create(queuePath + "pop-request");
+        URI responseUri = URI.create(queuePath + "response");
         
         // TODO loop, handle exceptions
-        RequestData requestData = tryFetchRequest(requestPath);
+        RequestData requestData = tryFetchRequest(requestUri);
+        if (requestData != null) {
         
-        // TODO start in thread: https://stackoverflow.com/a/20710164/3180809
-        ResponseData responseData = relayRequest(targetPath, requestData);
-        postResponse(responseData);  
+            // TODO start in thread: https://stackoverflow.com/a/20710164/3180809
+            ResponseData responseData = relayRequest(targetPath, requestData);
+            postResponse(responseUri, responseData);  
+        }
         
     }
 }
