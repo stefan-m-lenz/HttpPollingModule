@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublisher;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Properties;
@@ -53,34 +55,68 @@ public class HttpPollingModule {
         return config;
     }
    
-
-    public static void main(String[] args) {
-        
-        Properties config = handleCommandLineArgs(args);
-
-        String requestPath = config.getProperty("queue") + "/request";
-        String targetPath = config.getProperty("target");
+    private static RequestData tryFetchRequest(String requestPath) throws IOException, InterruptedException {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request4request = HttpRequest.newBuilder()
                 .uri(URI.create(requestPath))
                 .GET()
                 .build();
         
-        try {
-            HttpResponse<String> response = client.send(request4request, 
-                    BodyHandlers.ofString());
-            String responseBody = response.body();
-            if ("".equals(responseBody)) { // no new requests
-                return;
-            } else {
-                Gson gson = new Gson();
-                RequestData requestData = gson.fromJson(responseBody, RequestData.class);
-                HttpRequest targetRequest = requestData.buildRequest(config);
-                client.send(targetRequest, BodyHandlers.ofString());
-            }
-            
-        } catch (IOException | InterruptedException ex) {
-            Logger.getLogger(HttpPollingModule.class.getName()).log(Level.SEVERE, null, ex);
+        HttpResponse<String> response = client.send(request4request, 
+                BodyHandlers.ofString());
+        String responseBody = response.body();
+        if ("".equals(responseBody)) { // no new requests
+            return null;
+        } else {
+            Gson gson = new Gson();
+            return gson.fromJson(responseBody, RequestData.class);
         }
+    }
+    
+    private static ResponseData relayRequest(String targetPath, RequestData requestData) throws IOException, InterruptedException {
+        HttpClient client = HttpClient.newHttpClient();
+        
+        BodyPublisher bodyPublisher;
+        if ("POST".equals(requestData.getMethod()) || "PUT".equals(requestData.getMethod())) {
+            bodyPublisher = BodyPublishers.ofString(requestData.getBody());
+        } else {
+            bodyPublisher = BodyPublishers.noBody();
+        }
+        
+        HttpRequest relayedRequest = HttpRequest.newBuilder()
+                .uri(URI.create(targetPath + requestData.getUri()))
+                .method(requestData.getMethod(), bodyPublisher)
+                .build();
+        
+        HttpResponse<String> response = client.send(relayedRequest,
+                BodyHandlers.ofString());
+        
+        return new ResponseData(response, requestData.getRequestId());
+    }
+    
+    private static void postResponse(ResponseData responseData) {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest responseRequest = HttpRequest.newBuilder()
+                .uri(URI.create("response" + responseData.getRequestId()))
+                .method("POST", BodyPublishers.ofString(responseData.toString()))
+                .build();
+    }
+    
+    public static void main(String[] args) throws IOException, InterruptedException {
+        
+        Properties config = handleCommandLineArgs(args);
+        String targetPath = config.getProperty("target");
+        if (!targetPath.endsWith("/")) {
+            targetPath = targetPath + "/";
+        }
+        String requestPath = config.getProperty("queue") + "/pop-request";
+        
+        // TODO loop, handle exceptions
+        RequestData requestData = tryFetchRequest(requestPath);
+        
+        // TODO start in thread: https://stackoverflow.com/a/20710164/3180809
+        ResponseData responseData = relayRequest(targetPath, requestData);
+        postResponse(responseData);  
+        
     }
 }

@@ -1,11 +1,8 @@
 package de.imbei.httppollingmodule;
 
 
-import java.net.URI;
-import java.net.http.HttpRequest;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 public class RequestData {
     
@@ -54,18 +51,5 @@ public class RequestData {
     public void setBody(String body) {
         this.body = body;
     }
-    
-    public HttpRequest buildRequest(Properties config) {
-        String targetUrl = config.getProperty("target") + "/" + uri;
-        
-        HttpRequest.Builder httpRequestBuilder = HttpRequest.newBuilder()
-                .uri(URI.create(targetUrl));
-        
-        //TODO
-//        HttpRequest relayedRequest = HttpRequest.newBuilder()
-//                .uri(URI.create(targetUrl)).
-                
-    }
-   
     
 }
