@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package de.imbei.httppollingmodule;
 
 import com.google.gson.Gson;
@@ -94,12 +90,13 @@ public class HttpPollingModule {
         return new ResponseData(response, requestData.getRequestId());
     }
     
-    private static void postResponse(ResponseData responseData) {
+    private static void postResponse(ResponseData responseData) throws IOException, InterruptedException {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest responseRequest = HttpRequest.newBuilder()
                 .uri(URI.create("response" + responseData.getRequestId()))
                 .method("POST", BodyPublishers.ofString(responseData.toString()))
                 .build();
+        client.send(responseRequest, BodyHandlers.discarding());
     }
     
     public static void main(String[] args) throws IOException, InterruptedException {
