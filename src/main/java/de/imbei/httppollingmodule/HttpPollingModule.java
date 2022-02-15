@@ -1,6 +1,7 @@
 package de.imbei.httppollingmodule;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -70,7 +71,15 @@ public class HttpPollingModule {
             return null;
         } else {
             Gson gson = new Gson();
-            return gson.fromJson(responseBody, RequestData.class);
+            System.out.println(responseBody);
+            RequestData requestData = null;
+            try {
+                return gson.fromJson(responseBody, RequestData.class);
+            } catch (JsonSyntaxException ex) {
+                logger.log(Level.SEVERE, "Answer of server could not be parsed to RequestData object.\n" +
+                        "Answer from server: \n" + responseBody);
+                return null;
+            }
         }
     }
     
