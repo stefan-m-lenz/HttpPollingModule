@@ -13,13 +13,15 @@ import java.util.Map;
 public class ResponseData {
     
     private final int requestId;
+    private final int statusCode;
     private final Map<String, List<String>> headers;
     private final String body;
 
     public ResponseData(HttpResponse<String> response, int requestId) {
-        this.body = response.body();
         this.requestId = requestId;
+        this.statusCode = response.statusCode();
         this.headers = response.headers().map();
+        this.body = response.body();
     }
 
     public int getRequestId() {
