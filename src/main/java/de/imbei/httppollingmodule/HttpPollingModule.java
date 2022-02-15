@@ -60,7 +60,7 @@ public class HttpPollingModule {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request4request = HttpRequest.newBuilder()
                 .uri(requestUri)
-                .GET()
+                .POST(BodyPublishers.noBody())
                 .build();
         
         HttpResponse<String> response = client.send(request4request, 
