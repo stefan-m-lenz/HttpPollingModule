@@ -11,9 +11,11 @@ import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.net.ssl.SSLContext;
 
 
 public class HttpPollingModule {
@@ -69,8 +71,11 @@ public class HttpPollingModule {
         }
     }
     
-    private static ResponseData relayRequest(String targetPath, RequestData requestData) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newHttpClient();
+    private static ResponseData relayRequest(String targetPath, RequestData requestData) throws IOException, InterruptedException, NoSuchAlgorithmException {
+        HttpClient client = HttpClient.newBuilder()
+                .sslContext(SSLContext.getDefault())
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .build();
         
         BodyPublisher bodyPublisher;
         if ("POST".equals(requestData.getMethod()) || "PUT".equals(requestData.getMethod())) {
@@ -99,7 +104,7 @@ public class HttpPollingModule {
         client.send(responseRequest, BodyHandlers.discarding());
     }
     
-    public static void main(String[] args) throws IOException, InterruptedException {
+    public static void main(String[] args) throws IOException, InterruptedException, NoSuchAlgorithmException {
         
         Properties config = handleCommandLineArgs(args);
         String targetPath = config.getProperty("target");
