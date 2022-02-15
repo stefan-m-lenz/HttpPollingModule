@@ -21,6 +21,9 @@ import javax.net.ssl.SSLContext;
 public class HttpPollingModule {
     
     public static final String VERSION = "0.1";
+    public static final int DEFAULT_TIMEOUT_ON_FAIL_MILLIS = 30000;
+    public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 60;
+    private static final Logger logger = Logger.getLogger("Polling status");
 
     public static Properties getConfig(String fileName) throws FileNotFoundException, IOException {
         Properties config = new Properties();
@@ -71,11 +74,30 @@ public class HttpPollingModule {
         }
     }
     
-    private static ResponseData relayRequest(String targetPath, RequestData requestData) throws IOException, InterruptedException, NoSuchAlgorithmException {
-        HttpClient client = HttpClient.newBuilder()
-                .sslContext(SSLContext.getDefault())
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .build();
+    private static RequestData fetchRequestData(URI requestUri, int timeoutOnFail) throws InterruptedException {
+        RequestData requestData = null;
+        while (requestData == null) {
+            try {
+                requestData = tryFetchRequest(requestUri);
+            } catch (IOException | InterruptedException ex) {
+                logger.info("Fetching request failed, queue server could not be reached");
+                Thread.sleep(timeoutOnFail);
+            }
+        }
+        return requestData;
+    }
+    
+    private static ResponseData relayRequest(String targetPath, RequestData requestData) throws IOException, InterruptedException {
+        HttpClient client = null;
+        try {
+            client = HttpClient.newBuilder()
+                    .sslContext(SSLContext.getDefault())
+                    .followRedirects(HttpClient.Redirect.ALWAYS)
+                    .build();
+        } catch (NoSuchAlgorithmException ex) {
+            logger.log(Level.SEVERE, "Creating HTTP client fails", ex);
+            System.exit(1);
+        }
         
         BodyPublisher bodyPublisher;
         if ("POST".equals(requestData.getMethod()) || "PUT".equals(requestData.getMethod())) {
@@ -104,28 +126,52 @@ public class HttpPollingModule {
         client.send(responseRequest, BodyHandlers.discarding());
     }
     
-    public static void main(String[] args) throws IOException, InterruptedException, NoSuchAlgorithmException {
+    public static void processRequest(RequestData requestData, String targetPath, URI responseUri) {
+        ResponseData responseData;
+        try {
+            responseData = relayRequest(targetPath, requestData);
+        } catch (IOException | InterruptedException ex) {
+            logger.log(Level.SEVERE, "Fetching request failed, target server could not be reached", ex);
+            responseData = new ResponseData(requestData.getRequestId(), 500, "Error executing request");
+        }
+        
+        try {
+            postResponse(responseUri, responseData);
+        } catch (IOException | InterruptedException ex) {
+            logger.log(Level.SEVERE, "Response could not be delivered", ex);
+        }
+    }
+    
+    public static void main(String[] args) throws NoSuchAlgorithmException, InterruptedException {
         
         Properties config = handleCommandLineArgs(args);
+        
         String targetPath = config.getProperty("target");
         if (!targetPath.endsWith("/")) {
             targetPath = targetPath + "/";
         }
+        
         String queuePath = config.getProperty("queue");
         if (!queuePath.endsWith("/")) {
             queuePath = queuePath + "/";
         }
         
-        URI requestUri = URI.create(queuePath + "pop-request");
+        int queueWaitingTime = DEFAULT_QUEUE_WAITING_TIME_SECONDS;
+        if (config.getProperty("queueWaitingTime") != null) {
+            queueWaitingTime = Integer.parseInt(config.getProperty("queueWaitingTime"));    
+        }
+        
+        URI requestUri = URI.create(queuePath + "pop-request?w="+queueWaitingTime);
         URI responseUri = URI.create(queuePath + "response");
         
-        // TODO loop, handle exceptions
-        RequestData requestData = tryFetchRequest(requestUri);
-        if (requestData != null) {
-        
-            // TODO start in thread: https://stackoverflow.com/a/20710164/3180809
-            ResponseData responseData = relayRequest(targetPath, requestData);
-            postResponse(responseUri, responseData);  
+        int timeoutOnFail = DEFAULT_TIMEOUT_ON_FAIL_MILLIS;
+        if (config.getProperty("timeoutOnFail") != null) {
+            timeoutOnFail = 1000 * Integer.parseInt(config.getProperty("timeoutOnFail"));    
+        }
+
+        while (true) {
+            RequestData requestData = fetchRequestData(requestUri, timeoutOnFail);
+            new Thread(new RequestHandler(requestData, targetPath, responseUri)).start();
         }
         
     }
