@@ -71,7 +71,6 @@ public class HttpPollingModule {
             return null;
         } else {
             Gson gson = new Gson();
-            System.out.println(responseBody);
             RequestData requestData = null;
             try {
                 return gson.fromJson(responseBody, RequestData.class);
