@@ -7,12 +7,14 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -25,6 +27,7 @@ public class HttpPollingModule {
     public static final int DEFAULT_TIMEOUT_ON_FAIL_MILLIS = 30000;
     public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 60;
     private static final Logger logger = Logger.getLogger("Polling status");
+    private static long connectionTimeout = 20;
 
     public static Properties getConfig(String fileName) throws FileNotFoundException, IOException {
         Properties config = new Properties();
@@ -59,9 +62,11 @@ public class HttpPollingModule {
    
     private static RequestData tryFetchRequest(URI requestUri) throws IOException, InterruptedException {
         HttpClient client = HttpClient.newHttpClient();
+        
         HttpRequest request4request = HttpRequest.newBuilder()
                 .uri(requestUri)
                 .POST(BodyPublishers.noBody())
+                .timeout(Duration.ofSeconds(connectionTimeout))
                 .build();
         
         HttpResponse<String> response = client.send(request4request, 
@@ -116,12 +121,12 @@ public class HttpPollingModule {
         
         HttpRequest relayedRequest = HttpRequest.newBuilder()
                 .uri(URI.create(targetPath + requestData.getUri()))
+                .timeout(Duration.ofSeconds(connectionTimeout))
                 .method(requestData.getMethod(), bodyPublisher)
                 .build();
         
         HttpResponse<String> response = client.send(relayedRequest,
-                BodyHandlers.ofString());
-        
+            BodyHandlers.ofString());
         return new ResponseData(response, requestData.getRequestId());
     }
     
@@ -129,15 +134,24 @@ public class HttpPollingModule {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest responseRequest = HttpRequest.newBuilder()
                 .uri(responseUri)
+                .timeout(Duration.ofSeconds(connectionTimeout))
                 .method("POST", BodyPublishers.ofString(responseData.toString()))
                 .build();
-        client.send(responseRequest, BodyHandlers.discarding());
+        
+        try {
+            client.send(responseRequest, BodyHandlers.discarding());
+        } catch (IOException ex) {
+            logger.log(Level.WARNING, "Error while posting response", ex);
+        }
     }
     
     public static void processRequest(RequestData requestData, String targetPath, URI responseUri) {
         ResponseData responseData;
         try {
             responseData = relayRequest(targetPath, requestData);
+        } catch (HttpConnectTimeoutException ex) {
+            logger.log(Level.WARNING, "Timeout connecting with target server", ex);
+            responseData = new ResponseData(requestData.getRequestId(), 408, "Timeout while executing request");
         } catch (IOException | InterruptedException ex) {
             logger.log(Level.SEVERE, "Fetching request failed, target server could not be reached", ex);
             responseData = new ResponseData(requestData.getRequestId(), 500, "Error executing request");
@@ -167,6 +181,10 @@ public class HttpPollingModule {
         int queueWaitingTime = DEFAULT_QUEUE_WAITING_TIME_SECONDS;
         if (config.getProperty("queueWaitingTime") != null) {
             queueWaitingTime = Integer.parseInt(config.getProperty("queueWaitingTime"));    
+        }
+        
+        if (config.getProperty("connectionTimeout") != null) {
+            connectionTimeout = Integer.parseInt(config.getProperty("connectionTimeout"));
         }
         
         URI requestUri = URI.create(queuePath + "pop-request?w="+queueWaitingTime);
