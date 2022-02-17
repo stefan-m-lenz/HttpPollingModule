@@ -13,13 +13,14 @@ import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLContext;
-
+import javax.net.ssl.TrustManager;
 
 public class HttpPollingModule {
     
@@ -28,6 +29,8 @@ public class HttpPollingModule {
     public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 30;
     private static final Logger logger = Logger.getLogger("Polling status");
     private static long connectionTimeout = 90;
+    
+    private static SSLContext sslContext;
 
     public static Properties getConfig(String fileName) throws FileNotFoundException, IOException {
         Properties config = new Properties();
@@ -70,7 +73,9 @@ public class HttpPollingModule {
      * @throws InterruptedException 
      */
     private static RequestData tryFetchRequest(URI requestUri) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder()
+                .sslContext(sslContext)
+                .build();
         
         HttpRequest request4request = HttpRequest.newBuilder()
                 .uri(requestUri)
@@ -109,16 +114,10 @@ public class HttpPollingModule {
     }
     
     private static ResponseData relayRequest(String targetPath, RequestData requestData) throws IOException, InterruptedException {
-        HttpClient client = null;
-        try {
-            client = HttpClient.newBuilder()
-                    .sslContext(SSLContext.getDefault())
-                    .followRedirects(HttpClient.Redirect.ALWAYS)
-                    .build();
-        } catch (NoSuchAlgorithmException ex) {
-            logger.log(Level.SEVERE, "Creating HTTP client fails", ex);
-            System.exit(1);
-        }
+        HttpClient client = HttpClient.newBuilder()
+                .sslContext(sslContext)
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .build();
         
         BodyPublisher bodyPublisher;
         if ("POST".equals(requestData.getMethod()) || "PUT".equals(requestData.getMethod())) {
@@ -139,7 +138,10 @@ public class HttpPollingModule {
     }
     
     private static void postResponse(URI responseUri, ResponseData responseData) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder()
+                .sslContext(sslContext)
+                .build();
+        
         HttpRequest responseRequest = HttpRequest.newBuilder()
                 .uri(responseUri)
                 .timeout(Duration.ofSeconds(connectionTimeout))
@@ -172,7 +174,7 @@ public class HttpPollingModule {
         }
     }
     
-    public static void main(String[] args) throws NoSuchAlgorithmException, InterruptedException {
+    public static void main(String[] args) throws NoSuchAlgorithmException, InterruptedException, KeyManagementException {
         
         Properties config = handleCommandLineArgs(args);
         
@@ -206,6 +208,13 @@ public class HttpPollingModule {
         int timeoutOnFail = DEFAULT_TIMEOUT_ON_FAIL_MILLIS;
         if (config.getProperty("timeoutOnFail") != null) {
             timeoutOnFail = 1000 * Integer.parseInt(config.getProperty("timeoutOnFail"));    
+        }
+        
+        if ("false".equals(config.getProperty("checkCertificates"))) {
+            sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{new TrustAllManager()}, null);
+        } else {
+            sslContext = SSLContext.getDefault();
         }
 
         while (true) {
