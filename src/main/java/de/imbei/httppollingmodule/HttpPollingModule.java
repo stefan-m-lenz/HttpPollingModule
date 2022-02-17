@@ -25,9 +25,9 @@ public class HttpPollingModule {
     
     public static final String VERSION = "0.1";
     public static final int DEFAULT_TIMEOUT_ON_FAIL_MILLIS = 30000;
-    public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 60;
+    public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 30;
     private static final Logger logger = Logger.getLogger("Polling status");
-    private static long connectionTimeout = 20;
+    private static long connectionTimeout = 90;
 
     public static Properties getConfig(String fileName) throws FileNotFoundException, IOException {
         Properties config = new Properties();
@@ -60,6 +60,15 @@ public class HttpPollingModule {
         return config;
     }
    
+    /**
+     * Sends an HTTP request to the queue server to check for a new relay request.
+     * @param requestUri the URL of the relay server queue
+     * @return a new client relay request or 
+     * null if no client relay request was made to the relay server 
+     * while executing the request to the request queue
+     * @throws IOException
+     * @throws InterruptedException 
+     */
     private static RequestData tryFetchRequest(URI requestUri) throws IOException, InterruptedException {
         HttpClient client = HttpClient.newHttpClient();
         
@@ -76,7 +85,6 @@ public class HttpPollingModule {
             return null;
         } else {
             Gson gson = new Gson();
-            RequestData requestData = null;
             try {
                 return gson.fromJson(responseBody, RequestData.class);
             } catch (JsonSyntaxException ex) {
@@ -185,6 +193,11 @@ public class HttpPollingModule {
         
         if (config.getProperty("connectionTimeout") != null) {
             connectionTimeout = Integer.parseInt(config.getProperty("connectionTimeout"));
+        }
+        
+        if (connectionTimeout <= 2*queueWaitingTime) {
+            connectionTimeout = 3*queueWaitingTime;
+            logger.info("Value of connectionTimeout too small - value adjusted");
         }
         
         URI requestUri = URI.create(queuePath + "pop-request?w="+queueWaitingTime);
