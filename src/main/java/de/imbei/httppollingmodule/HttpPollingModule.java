@@ -16,6 +16,8 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -91,6 +93,7 @@ public class HttpPollingModule {
         } else {
             Gson gson = new Gson();
             try {
+                logger.log(Level.INFO, "Received request:\n" + responseBody);
                 return gson.fromJson(responseBody, RequestData.class);
             } catch (JsonSyntaxException ex) {
                 logger.log(Level.SEVERE, "Answer of server could not be parsed to RequestData object.\n" +
@@ -126,11 +129,23 @@ public class HttpPollingModule {
             bodyPublisher = BodyPublishers.noBody();
         }
         
-        HttpRequest relayedRequest = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(targetPath + requestData.getUri()))
                 .timeout(Duration.ofSeconds(connectionTimeout))
-                .method(requestData.getMethod(), bodyPublisher)
-                .build();
+                .method(requestData.getMethod(), bodyPublisher);
+                
+        for (Map.Entry<String, List<String>> headerEntry : requestData.getHeaders().entrySet()) {
+            for (String headerVal : headerEntry.getValue()) {
+                try {
+                    requestBuilder.header(headerEntry.getKey(), headerVal);
+                } catch (IllegalArgumentException ex) {
+                    logger.log(Level.WARNING, "Restricted header \"" + headerEntry.getKey() + "\" ignored.", ex);
+                }
+                
+            }
+        }
+                
+        HttpRequest relayedRequest = requestBuilder.build();
         
         HttpResponse<String> response = client.send(relayedRequest,
             BodyHandlers.ofString());
@@ -150,6 +165,7 @@ public class HttpPollingModule {
         
         try {
             client.send(responseRequest, BodyHandlers.discarding());
+            logger.log(Level.INFO, "Returned answer\n" + responseData.toString());
         } catch (IOException ex) {
             logger.log(Level.WARNING, "Error while posting response", ex);
         }
