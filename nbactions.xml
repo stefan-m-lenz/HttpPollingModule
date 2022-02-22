@@ -10,7 +10,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:3.0.0:exec</goal>
             </goals>
             <properties>
-                <exec.vmArgs></exec.vmArgs>
+                <exec.vmArgs>-Djdk.httpclient.HttpClient.log=requests,headers,content -Djava.util.logging.ConsoleHandler.level=FINEST</exec.vmArgs>
                 <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
                 <exec.appArgs>config.properties</exec.appArgs>
                 <exec.mainClass>de.imbei.httppollingmodule.HttpPollingModule</exec.mainClass>
@@ -27,7 +27,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:3.0.0:exec</goal>
             </goals>
             <properties>
-                <exec.vmArgs>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</exec.vmArgs>
+                <exec.vmArgs>-Djdk.httpclient.HttpClient.log=requests,headers,content -Djava.util.logging.ConsoleHandler.level=FINEST -agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</exec.vmArgs>
                 <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
                 <exec.appArgs>config.properties</exec.appArgs>
                 <exec.mainClass>de.imbei.httppollingmodule.HttpPollingModule</exec.mainClass>
@@ -45,7 +45,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:3.0.0:exec</goal>
             </goals>
             <properties>
-                <exec.vmArgs></exec.vmArgs>
+                <exec.vmArgs>-Djdk.httpclient.HttpClient.log=requests,headers,content -Djava.util.logging.ConsoleHandler.level=FINEST</exec.vmArgs>
                 <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
                 <exec.mainClass>${packageClassName}</exec.mainClass>
                 <exec.executable>java</exec.executable>
