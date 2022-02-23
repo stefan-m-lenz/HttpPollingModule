@@ -5,6 +5,7 @@ import com.google.gson.JsonSyntaxException;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
@@ -147,8 +148,8 @@ public class HttpPollingModule {
                 
         HttpRequest relayedRequest = requestBuilder.build();
         
-        HttpResponse<String> response = client.send(relayedRequest,
-            BodyHandlers.ofString());
+        HttpResponse<InputStream> response = client.send(relayedRequest,
+            BodyHandlers.ofInputStream());
         return new ResponseData(response, requestData.getRequestId());
     }
     

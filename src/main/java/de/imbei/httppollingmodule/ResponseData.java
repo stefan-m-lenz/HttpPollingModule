@@ -2,7 +2,10 @@ package de.imbei.httppollingmodule;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.http.HttpResponse;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,11 +21,15 @@ public class ResponseData {
     private final Map<String, List<String>> headers;
     private final String body;
 
-    public ResponseData(HttpResponse<String> response, int requestId) {
+    public ResponseData(HttpResponse<InputStream> response, int requestId) throws IOException {
         this.requestId = requestId;
         this.statusCode = response.statusCode();
-        this.headers = response.headers().map();
-        this.body = response.body();
+        this.headers = new HashMap<>();
+        headers.putAll(response.headers().map());
+        headers.remove("transfer-encoding");
+        InputStream inputStream = response.body();
+        byte[] byteArray = inputStream.readAllBytes();
+        this.body = Base64.getEncoder().encodeToString(byteArray);
     }
     
     public ResponseData(int requestId, int statusCode, String body) {
