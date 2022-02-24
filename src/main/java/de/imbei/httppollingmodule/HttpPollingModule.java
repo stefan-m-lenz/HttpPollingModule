@@ -32,6 +32,8 @@ public class HttpPollingModule {
     public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 30;
     private static final Logger logger = Logger.getLogger("Polling status");
     private static long connectionTimeout = 90;
+    public static String targetPath;
+    public static String queuePath;
     
     private static SSLContext sslContext;
 
@@ -195,12 +197,12 @@ public class HttpPollingModule {
         
         Properties config = handleCommandLineArgs(args);
         
-        String targetPath = config.getProperty("target");
+        targetPath = config.getProperty("target");
         if (!targetPath.endsWith("/")) {
             targetPath = targetPath + "/";
         }
         
-        String queuePath = config.getProperty("queue");
+        queuePath = config.getProperty("queue");
         if (!queuePath.endsWith("/")) {
             queuePath = queuePath + "/";
         }

@@ -9,6 +9,8 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
+import static java.util.stream.Collectors.toList;
 
 /**
  *
@@ -27,6 +29,13 @@ public class ResponseData {
         this.headers = new HashMap<>();
         headers.putAll(response.headers().map());
         headers.remove("transfer-encoding");
+        if (headers.containsKey("location")) {
+            headers.put("location", headers.get("location").stream()
+                    .map(el -> el.replaceFirst("^" + Pattern.quote(HttpPollingModule.targetPath), 
+                    //    HttpPollingModule.queuePath
+                    "http://localhost:8080/QueueServer/relay/" //TODO property "relay"
+                    )).collect(toList()));
+        }
         InputStream inputStream = response.body();
         byte[] byteArray = inputStream.readAllBytes();
         this.body = Base64.getEncoder().encodeToString(byteArray);
