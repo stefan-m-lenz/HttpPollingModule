@@ -27,7 +27,7 @@ import javax.net.ssl.TrustManager;
 
 public class HttpPollingModule {
     
-    public static final String VERSION = "0.1";
+    public static final String VERSION = "1.0";
     public static final int DEFAULT_TIMEOUT_ON_FAIL_MILLIS = 30000;
     public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 30;
     private static final Logger logger = Logger.getLogger("Polling status");
