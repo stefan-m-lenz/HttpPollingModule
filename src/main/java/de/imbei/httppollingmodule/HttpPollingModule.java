@@ -110,7 +110,7 @@ public class HttpPollingModule {
             try {
                 requestData = tryFetchRequest(requestUri);
             } catch (IOException | InterruptedException ex) {
-                logger.info("Fetching request failed, queue server could not be reached");
+                logger.log(Level.INFO, "Fetching request failed, queue server could not be reached", ex);
                 Thread.sleep(timeoutOnFail);
             }
         }
