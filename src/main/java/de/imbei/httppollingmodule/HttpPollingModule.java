@@ -6,6 +6,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
@@ -33,6 +35,7 @@ public class HttpPollingModule {
     private static final Logger logger = Logger.getLogger("Polling status");
     private static long connectionTimeout = 90;
     
+    private static InetSocketAddress queueProxy = null;
     private static SSLContext sslContext;
 
     public static Properties getConfig(String fileName) throws FileNotFoundException, IOException {
@@ -65,6 +68,18 @@ public class HttpPollingModule {
         }
         return config;
     }
+    
+    // Get a HttpClient that can be used to talk to the queue server.
+    private static HttpClient getQueueClient() {
+        HttpClient.Builder httpClientBuilder = HttpClient.newBuilder()
+                .sslContext(sslContext);
+        
+        if (queueProxy != null) {
+            httpClientBuilder.proxy(ProxySelector.of(queueProxy));
+        }
+        
+        return httpClientBuilder.build();
+    }
    
     /**
      * Sends an HTTP request to the queue server to check for a new relay request.
@@ -76,9 +91,7 @@ public class HttpPollingModule {
      * @throws InterruptedException 
      */
     private static RequestData tryFetchRequest(URI requestUri) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newBuilder()
-                .sslContext(sslContext)
-                .build();
+        HttpClient client = getQueueClient();
         
         HttpRequest request4request = HttpRequest.newBuilder()
                 .uri(requestUri)
@@ -154,9 +167,7 @@ public class HttpPollingModule {
     }
     
     private static void postResponse(URI responseUri, ResponseData responseData) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newBuilder()
-                .sslContext(sslContext)
-                .build();
+        HttpClient client = getQueueClient();
         
         HttpRequest responseRequest = HttpRequest.newBuilder()
                 .uri(responseUri)
@@ -191,6 +202,16 @@ public class HttpPollingModule {
         }
     }
     
+    private static InetSocketAddress parseInetSocketAddress(String hostAndPort) {
+        int lastIndexOfColon = hostAndPort.lastIndexOf(":");
+        if (lastIndexOfColon < 0) {
+            throw new IllegalArgumentException("Port missing");
+        }
+        String host = hostAndPort.substring(0, lastIndexOfColon);
+        int port = Integer.parseInt(hostAndPort.substring(lastIndexOfColon + 1));
+        return new InetSocketAddress(host, port);
+    }
+    
     public static void main(String[] args) throws NoSuchAlgorithmException, InterruptedException, KeyManagementException {
         
         Properties config = handleCommandLineArgs(args);
@@ -221,6 +242,15 @@ public class HttpPollingModule {
         
         URI requestUri = URI.create(queuePath + "pop-request?w="+queueWaitingTime);
         URI responseUri = URI.create(queuePath + "response");
+        
+        if (config.getProperty("queueProxy") != null) {
+            try {
+                queueProxy = parseInetSocketAddress(config.getProperty("queueProxy"));
+            } catch(IllegalArgumentException ex) {
+                logger.log(Level.SEVERE, "Parameter queueProxy could not be parsed succesfully", ex);
+                System.exit(1);
+            }
+        }
         
         int timeoutOnFail = DEFAULT_TIMEOUT_ON_FAIL_MILLIS;
         if (config.getProperty("timeoutOnFail") != null) {
