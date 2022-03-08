@@ -17,14 +17,21 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
 
 public class HttpPollingModule {
@@ -37,6 +44,7 @@ public class HttpPollingModule {
     
     private static InetSocketAddress queueProxy = null;
     private static SSLContext sslContext;
+    private static SSLParameters sslParam = new SSLParameters();
 
     public static Properties getConfig(String fileName) throws FileNotFoundException, IOException {
         Properties config = new Properties();
@@ -72,7 +80,8 @@ public class HttpPollingModule {
     // Get a HttpClient that can be used to talk to the queue server.
     private static HttpClient getQueueClient() {
         HttpClient.Builder httpClientBuilder = HttpClient.newBuilder()
-                .sslContext(sslContext);
+                .sslContext(sslContext)
+                .sslParameters(sslParam);
         
         if (queueProxy != null) {
             httpClientBuilder.proxy(ProxySelector.of(queueProxy));
@@ -212,6 +221,65 @@ public class HttpPollingModule {
         return new InetSocketAddress(host, port);
     }
     
+    private static KeyManager[] getClientCertificateKeyManagers(String pfxFile, String pfxPassword) {
+        try {
+            KeyStore keystore = KeyStore.getInstance("PKCS12");
+            char[] password = pfxPassword.toCharArray();
+            try (FileInputStream stream = new FileInputStream(pfxFile)) {
+                keystore.load(stream, password);
+                //Enumeration<String> aliases = keystore.aliases();
+                //String alias = aliases.nextElement();
+                KeyManagerFactory keyMgrFactory = KeyManagerFactory.getInstance("SunX509");
+                keyMgrFactory.init(keystore, pfxPassword.toCharArray());
+                return keyMgrFactory.getKeyManagers(); //(X509Certificate) keystore.getCertificate(alias);
+            }
+        } catch (UnrecoverableKeyException | NoSuchAlgorithmException | IOException | CertificateException | KeyStoreException ex) {
+            logger.log(Level.SEVERE, "Error when trying to use certificate", ex);
+            System.exit(1);
+        }
+        return null;
+    }
+    
+    // sets sslContext and sslParam variables according to config
+    private static void setupSslContext(Properties config) throws NoSuchAlgorithmException, KeyManagementException {
+        KeyManager[] keyManagers = null;
+        if (config.getProperty("queueClientAuthCert") != null) {
+            sslParam.setWantClientAuth(true);
+            
+            String certificatePassword = config.getProperty("queueClientAuthCertPassword");
+            String certificateFile = config.getProperty("queueClientAuthCert");
+            
+            keyManagers = getClientCertificateKeyManagers(certificateFile, certificatePassword);
+            if (certificatePassword == null) {
+                logger.log(Level.SEVERE, "Password for certificate file must be provided");
+                System.exit(1);
+            }
+        }
+        
+        TrustManager[] trustManagers = null;
+        if ("false".equals(config.getProperty("checkCertificates"))) {
+            trustManagers = new TrustManager[]{new TrustAllManager()};    
+        }
+        
+        if (trustManagers != null || keyManagers != null) {
+            sslContext =  SSLContext.getInstance("TLS");
+            sslContext.init(keyManagers, trustManagers, null);
+        } else {
+            sslContext = SSLContext.getDefault();
+        }
+    }
+    
+//    private static KeyManager[] getClientAuthKeyManagers() throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
+//        KeyStore clientKeyStore = KeyStore.getInstance("jks");
+//        final char[] pwdChars = UUID.randomUUID().toString().toCharArray();
+//        clientKeyStore.load(null, null);
+//        clientKeyStore.setKeyEntry("Polling", key, pwdChars, chain.toArray(new Certificate[0]));
+//
+//        KeyManagerFactory keyMgrFactory = KeyManagerFactory.getInstance("SunX509");
+//        keyMgrFactory.init(clientKeyStore, pwdChars);
+//        return keyMgrFactory.getKeyManagers();
+//    }
+    
     public static void main(String[] args) throws NoSuchAlgorithmException, InterruptedException, KeyManagementException {
         
         Properties config = handleCommandLineArgs(args);
@@ -257,13 +325,8 @@ public class HttpPollingModule {
             timeoutOnFail = 1000 * Integer.parseInt(config.getProperty("timeoutOnFail"));    
         }
         
-        if ("false".equals(config.getProperty("checkCertificates"))) {
-            sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, new TrustManager[]{new TrustAllManager()}, null);
-        } else {
-            sslContext = SSLContext.getDefault();
-        }
-
+        setupSslContext(config);
+        
         while (true) {
             RequestData requestData = fetchRequestData(requestUri, timeoutOnFail);
             new Thread(new RequestHandler(requestData, targetPath, responseUri)).start();
