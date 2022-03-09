@@ -43,7 +43,7 @@ The following configuration options are possible:
   sudo vim /etc/systemd/system/HttpPollingModule.service
 
 # Enter the following text in the HttpPollingModule.service file
-# Replace the path for WorkingDirectory, Java_path, user_name to fit your configurations
+# Replace the path for WorkingDirectory, Java_path, User to fit your configurations
 
 [Unit]
 Description=Manage polling service
