@@ -100,7 +100,12 @@ sudo systemctl start HttpPollingModule.service
 Check the status of the service:
 
 ```bash
-systemctl status HttpPollingModule.service
+sudo systemctl status HttpPollingModule.service
 ```
 
 The status should be "Active (running)".
+Finally, the service can be enabled to be run at the system startup:
+
+```bash
+sudo systemctl enable HttpPollingModule.service
+```
