@@ -36,11 +36,17 @@ import javax.net.ssl.TrustManager;
 
 public class HttpPollingModule {
     
-    public static final String VERSION = "1.0";
+    public static final String VERSION = "1.0.1";
     public static final int DEFAULT_TIMEOUT_ON_FAIL_MILLIS = 30000;
     public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 30;
-    private static final Logger logger = Logger.getLogger("Polling status");
     private static long connectionTimeout = 90;
+    
+    private static final Logger logger = Logger.getLogger("Polling status");
+    static {
+        // The logger needs to have the same log level as the global logger,
+        // otherwise there is additional filtering of messages.
+        logger.setLevel(Logger.getGlobal().getLevel());
+    }
     
     private static InetSocketAddress queueProxy = null;
     private static SSLContext sslContextQueue;
@@ -57,7 +63,7 @@ public class HttpPollingModule {
     
     public static Properties handleCommandLineArgs(String[] args) {
         if (args.length == 0) {
-            System.err.println("Supply path to config file as argument");
+            logger.log(Level.SEVERE, "Supply path to config file as argument");
             System.exit(1);
         }
         
@@ -70,8 +76,7 @@ public class HttpPollingModule {
         try {
             config = getConfig(args[0]);
         } catch (IOException ex) {
-            Logger.getLogger(HttpPollingModule.class.getName()).log(Level.SEVERE, null, ex);
-            System.err.println("Could not read config file");
+            logger.log(Level.SEVERE, "Error reading config file", ex);
             System.exit(1);
             return null;
         }
@@ -117,7 +122,7 @@ public class HttpPollingModule {
         } else {
             Gson gson = new Gson();
             try {
-                logger.log(Level.INFO, "Received request:\n" + responseBody);
+                logger.log(Level.FINE, "Received request:\n{0}", responseBody);
                 return gson.fromJson(responseBody, RequestData.class);
             } catch (JsonSyntaxException ex) {
                 logger.log(Level.SEVERE, "Answer of server could not be parsed to RequestData object.\n" +
@@ -187,7 +192,7 @@ public class HttpPollingModule {
         
         try {
             client.send(responseRequest, BodyHandlers.discarding());
-            logger.log(Level.INFO, "Returned answer\n" + responseData.toString());
+            logger.log(Level.FINE, "Returned answer\n{0}", responseData.toString());
         } catch (IOException ex) {
             logger.log(Level.WARNING, "Error while posting response", ex);
         }
@@ -313,7 +318,7 @@ public class HttpPollingModule {
             try {
                 queueProxy = parseInetSocketAddress(config.getProperty("queueProxy"));
             } catch(IllegalArgumentException ex) {
-                logger.log(Level.SEVERE, "Parameter queueProxy could not be parsed succesfully", ex);
+                logger.log(Level.SEVERE, "Parameter queueProxy could not be parsed successfully", ex);
                 System.exit(1);
             }
         }
