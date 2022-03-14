@@ -11,7 +11,7 @@ java -jar HttpPollingModule.jar config.properties
 
 The program accepts a path to a configuration file as a single argument.
 This file is a Java properties file, which contains keys and values.
-An example can be found [here](config.properties).
+An example can be found [here](config.properties.example).
 The following configuration options are possible:
 
 |Key|Required|Value|
