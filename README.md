@@ -42,7 +42,7 @@ Create an installation directory and download the application:
 
 ```bash
 sudo mkdir /opt/poll
-wget https://github.com/stefan-m-lenz/HttpPollingModule/releases/download/v1.0/HttpPollingModule.jar
+wget https://github.com/stefan-m-lenz/HttpPollingModule/releases/download/v1.0.1/HttpPollingModule.jar
 sudo mv HttpPollingModule.jar /opt/poll
 ```
 
