@@ -16,8 +16,8 @@ The following configuration options are possible:
 
 |Key|Required|Value|
 |-|-|-|
-|`queue`|Yes|The base URL of the queue server.|
-|`target`|Yes|The base URL of the target server.|
+|`queue`|Yes|The URL of the queue server. This is the URL of the Nginx server if it has been configured as described in the `HttpQueueServer` [README](https://github.com/stefan-m-lenz/HttpQueueServer#install-and-configure-nginx-as-reverse-proxy). Without Nginx (not recommended for production, only for testing), the URL is of the form http://queue.example.com/HttpQueueServer/. |
+|`target`|Yes|The URL of the target server.|
 |`queueProxy`|No|If a proxy server is needed to access the `HttpQueueServer`, the address of the proxy can be specified via this argument in the form *hostname*:*port*.|
 |`queueClientAuthCert`|No|If client authorization is used to authenticate the polling module at the queue, the path to a PKCS12-file that contains the certificate can be specified.|
 |`queueClientAuthCertPassword`|No|The password for the `queueClientAuthCert` certificate file|
@@ -109,3 +109,9 @@ Finally, the service can be enabled to be run at the system startup:
 ```bash
 sudo systemctl enable HttpPollingModule.service
 ```
+
+The polling module is now running as a service on the computer.
+The service is managed by `systemd`, which also handles the logging output.
+The polling module writes its logging output to the standard output, which is collected by systemd and which can be inspected via
+`journalctl -u HttpPollingModule`.
+The default settings of `journald`, the service unit of `systemd` that handles logging, should usually suffice but there are also more configration options available for more control over handling the logging via `journald`.
