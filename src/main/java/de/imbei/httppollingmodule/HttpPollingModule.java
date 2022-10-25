@@ -99,13 +99,15 @@ public class HttpPollingModule {
     /**
      * Sends an HTTP request to the queue server to check for a new relay request.
      * @param requestUri the URL of the relay server queue
+     * @param timeoutOnFail the length of the timeout milliseconds after
+     * parsing of the response of the server fails
      * @return a new client relay request or 
      * null if no client relay request was made to the relay server 
      * while executing the request to the request queue
      * @throws IOException
      * @throws InterruptedException 
      */
-    private static RequestData tryFetchRequest(URI requestUri) throws IOException, InterruptedException {
+    private static RequestData tryFetchRequest(URI requestUri, int timeoutOnFail) throws IOException, InterruptedException {
         HttpClient client = getQueueClient();
         
         HttpRequest request4request = HttpRequest.newBuilder()
@@ -113,7 +115,7 @@ public class HttpPollingModule {
                 .POST(BodyPublishers.noBody())
                 .timeout(Duration.ofSeconds(connectionTimeout))
                 .build();
-        
+               
         HttpResponse<String> response = client.send(request4request, 
                 BodyHandlers.ofString());
         String responseBody = response.body();
@@ -127,6 +129,7 @@ public class HttpPollingModule {
             } catch (JsonSyntaxException ex) {
                 logger.log(Level.SEVERE, "Answer of server could not be parsed to RequestData object.\n" +
                         "Answer from server: \n" + responseBody);
+                Thread.sleep(timeoutOnFail);
                 return null;
             }
         }
@@ -136,7 +139,7 @@ public class HttpPollingModule {
         RequestData requestData = null;
         while (requestData == null) {
             try {
-                requestData = tryFetchRequest(requestUri);
+                requestData = tryFetchRequest(requestUri, timeoutOnFail);
             } catch (IOException | InterruptedException ex) {
                 logger.log(Level.INFO, "Fetching request failed, queue server could not be reached", ex);
                 Thread.sleep(timeoutOnFail);
