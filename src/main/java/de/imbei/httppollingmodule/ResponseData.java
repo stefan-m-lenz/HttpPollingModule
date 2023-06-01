@@ -36,7 +36,8 @@ public class ResponseData {
         this.requestId = requestId;
         this.statusCode = statusCode;
         this.headers = new HashMap<>();
-        this.body = body;
+        this.headers.put("content-type", List.of("text/plain"));
+        this.body = Base64.getEncoder().encodeToString(body.getBytes());
     }
 
     public int getRequestId() {

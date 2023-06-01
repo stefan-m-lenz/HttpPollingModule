@@ -36,7 +36,7 @@ import javax.net.ssl.TrustManager;
 
 public class HttpPollingModule {
     
-    public static final String VERSION = "1.0.1";
+    public static final String VERSION = "1.0.1.9000";
     public static final int DEFAULT_TIMEOUT_ON_FAIL_MILLIS = 30000;
     public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 30;
     private static long connectionTimeout = 90;
@@ -206,11 +206,13 @@ public class HttpPollingModule {
         try {
             responseData = relayRequest(targetPath, requestData);
         } catch (HttpConnectTimeoutException ex) {
-            logger.log(Level.WARNING, "Timeout connecting with target server", ex);
-            responseData = new ResponseData(requestData.getRequestId(), 408, "Timeout while executing request");
+            logger.log(Level.WARNING, "HTTP connection timeout while trying to connect with target server", ex);
+            responseData = new ResponseData(requestData.getRequestId(), 408, 
+                    "Error executing request in polling module: HTTP connection timeout connecting to the target server");
         } catch (IOException | InterruptedException ex) {
-            logger.log(Level.SEVERE, "Fetching request failed, target server could not be reached", ex);
-            responseData = new ResponseData(requestData.getRequestId(), 500, "Error executing request");
+            logger.log(Level.SEVERE, "Fetching request failed, no answer from target server", ex);
+            responseData = new ResponseData(requestData.getRequestId(), 500, 
+                    "Error executing request in polling module: no answer from target server (timeout setting of " + connectionTimeout + " seconds)");
         }
         
         try {
