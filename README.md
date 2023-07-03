@@ -23,7 +23,9 @@ The following configuration options are possible:
 |`queueClientAuthCertPassword`|No|The password for the `queueClientAuthCert` certificate file|
 |`timeoutOnFail`|No|If the queue server is not reachable, the polling module will continously retry to establish a connection, pausing a number of seconds after each unsuccesful try. The number of seconds can be specified via this option. The default interval between unsuccesful tries is 30 seconds.|
 |`queueWaitingTime`|No|The queue server lets the polling module wait a number of seconds before it tells the polling module that there are no new relay requests. If there is a new relay request coming in during the waiting time, the request can be handed over immediately to the waiting polling module. The polling module passes this option to the server via a query parameter. This parameter tells the queue server the minimum time that the polling module wants to wait . The default value is 30 (seconds).|
-|`connectionTimeout`|No|The number of seconds that the polling module waits for a request to be answered. Failed requests are logged. The value must be large enough to account for the queue waiting time. If it is not more than twice the `queueWaitingTime`, it will be adjusted to three times the `queueWaitingTime`.|
+|`queueConnectionTimeout`|No|The number of seconds that the polling module waits for the queue server to answer. Failed requests are logged. The value must be large enough to account for the queue waiting time. If it is not more than twice the `queueWaitingTime`, it will be adjusted to three times the `queueWaitingTime`.|
+|`targetConnectionTimeout`|No|The number of seconds that the polling module waits for a request to be answered by the target server. If a timeout occurs, a log entry is created and an answer with HTTP status code 504 (Gateway timeout) is sent back to the client.|
+|`connectionTimeout`|No|Used for `queueConnectionTimeout` and/or `targetConnectionTimeout` if they are not specified explicitly as `queueConnectionTimeout` and/or `targetConnectionTimeout`.
 |`checkCertificates`|No|If set to `false`, SSL certificates will not be checked.|
 
 ## Deployment as a service

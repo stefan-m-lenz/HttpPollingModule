@@ -10,12 +10,12 @@ import java.net.InetSocketAddress;
 import java.net.ProxySelector;
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.net.http.HttpTimeoutException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -36,10 +36,12 @@ import javax.net.ssl.TrustManager;
 
 public class HttpPollingModule {
     
-    public static final String VERSION = "1.0.1.9000";
+    public static final String VERSION = "1.1.0";
     public static final int DEFAULT_TIMEOUT_ON_FAIL_MILLIS = 30000;
     public static int DEFAULT_QUEUE_WAITING_TIME_SECONDS = 30;
-    private static long connectionTimeout = 90;
+    private static long queueConnectionTimeout = 90;
+    private static long targetConnectionTimeout = queueConnectionTimeout;
+   
     
     private static final Logger logger = Logger.getLogger("Polling status");
     static {
@@ -113,7 +115,7 @@ public class HttpPollingModule {
         HttpRequest request4request = HttpRequest.newBuilder()
                 .uri(requestUri)
                 .POST(BodyPublishers.noBody())
-                .timeout(Duration.ofSeconds(connectionTimeout))
+                .timeout(Duration.ofSeconds(queueConnectionTimeout))
                 .build();
                
         HttpResponse<String> response = client.send(request4request, 
@@ -163,7 +165,7 @@ public class HttpPollingModule {
         
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(targetPath + requestData.getUri()))
-                .timeout(Duration.ofSeconds(connectionTimeout))
+                .timeout(Duration.ofSeconds(targetConnectionTimeout))
                 .method(requestData.getMethod(), bodyPublisher);
                 
         for (Map.Entry<String, List<String>> headerEntry : requestData.getHeaders().entrySet()) {
@@ -189,7 +191,7 @@ public class HttpPollingModule {
         
         HttpRequest responseRequest = HttpRequest.newBuilder()
                 .uri(responseUri)
-                .timeout(Duration.ofSeconds(connectionTimeout))
+                .timeout(Duration.ofSeconds(queueConnectionTimeout))
                 .method("POST", BodyPublishers.ofString(responseData.toString()))
                 .build();
         
@@ -205,14 +207,15 @@ public class HttpPollingModule {
         ResponseData responseData;
         try {
             responseData = relayRequest(targetPath, requestData);
-        } catch (HttpConnectTimeoutException ex) {
+        } catch (HttpTimeoutException ex) {
             logger.log(Level.WARNING, "HTTP connection timeout while trying to connect with target server", ex);
-            responseData = new ResponseData(requestData.getRequestId(), 408, 
-                    "Error executing request in polling module: HTTP connection timeout connecting to the target server");
+            responseData = new ResponseData(requestData.getRequestId(), 504, 
+                    "Error executing request in polling module: timeout connecting to the target server (timeout setting of " 
+                            + targetConnectionTimeout + " seconds)");
         } catch (IOException | InterruptedException ex) {
-            logger.log(Level.SEVERE, "Fetching request failed, no answer from target server", ex);
+            logger.log(Level.SEVERE, "Fetching request from target server failed", ex);
             responseData = new ResponseData(requestData.getRequestId(), 500, 
-                    "Error executing request in polling module: no answer from target server (timeout setting of " + connectionTimeout + " seconds)");
+                    "Error executing request in polling module");
         }
         
         try {
@@ -293,11 +296,19 @@ public class HttpPollingModule {
         Properties config = handleCommandLineArgs(args);
         
         String targetPath = config.getProperty("target");
+        if (targetPath == null) {
+            logger.log(Level.SEVERE, "Parameter \"target\" must be specified in the config file");
+            System.exit(1);
+        }
         if (!targetPath.endsWith("/")) {
             targetPath = targetPath + "/";
         }
         
         String queuePath = config.getProperty("queue");
+        if (queuePath == null) {
+            logger.log(Level.SEVERE, "Parameter \"queue\" must be specified in the config file");
+            System.exit(1);
+        }
         if (!queuePath.endsWith("/")) {
             queuePath = queuePath + "/";
         }
@@ -308,11 +319,22 @@ public class HttpPollingModule {
         }
         
         if (config.getProperty("connectionTimeout") != null) {
-            connectionTimeout = Integer.parseInt(config.getProperty("connectionTimeout"));
+            queueConnectionTimeout = Integer.parseInt(config.getProperty("connectionTimeout"));
+            targetConnectionTimeout = queueConnectionTimeout;
         }
         
-        if (connectionTimeout <= 2*queueWaitingTime) {
-            connectionTimeout = 3*queueWaitingTime;
+        if (config.getProperty("targetConnectionTimeout") != null) {
+            // The value of targetConnectionTimeout overrides the value of connectionTimeout for the target
+            targetConnectionTimeout = Integer.parseInt(config.getProperty("targetConnectionTimeout"));
+        }
+        
+        if (config.getProperty("queueConnectionTimeout") != null) {
+            // The value of queueConnectionTimeout overrides the value of connectionTimeout for the queue
+            queueConnectionTimeout = Integer.parseInt(config.getProperty("queueConnectionTimeout"));
+        }
+        
+        if (queueConnectionTimeout <= 2*queueWaitingTime) {
+            queueConnectionTimeout = 3*queueWaitingTime;
             logger.info("Value of connectionTimeout too small - value adjusted");
         }
         
