@@ -26,8 +26,10 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -290,10 +292,36 @@ public class HttpPollingModule {
         }
     }
     
+    private static void checkForUnknownKeys(Properties config) {
+        Set<String> knownKeys = Set.of(
+                "checkCertificates",
+                "connectionTimeout",
+                "queue", 
+                "queueConnectionTimeout",
+                "queueClientAuthCert",
+                "queueClientAuthCertPassword",
+                "queueProxy",
+                "queueWaitingTime", 
+                "target", 
+                "targetConnectionTimeout",
+                "timeoutOnFail");
+        
+        List<String> unknownKeys = config.stringPropertyNames().stream()
+                .filter(key -> !knownKeys.contains(key))
+                .collect(Collectors.toList());
+        
+        if (!unknownKeys.isEmpty()) {
+            unknownKeys.forEach(key -> logger.log(Level.SEVERE, "Unknown parameter \"{0}\" in the config file", key));
+            System.exit(1);
+        }
+        
+    }
     
     public static void main(String[] args) throws NoSuchAlgorithmException, InterruptedException, KeyManagementException {
         
         Properties config = handleCommandLineArgs(args);
+      
+        checkForUnknownKeys(config);
         
         String targetPath = config.getProperty("target");
         if (targetPath == null) {
